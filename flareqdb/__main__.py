@@ -7,7 +7,7 @@ def qdb_parse_cmdline_args(console):
     t = vtrace.getTrace()
     archlabel = '[' + t.getMeta('Architecture') + ']'
     t.release()
-    desc = 'FireEye Labs Query-Oriented Debugger ' + archlabel
+    desc = f'FireEye Labs Query-Oriented Debugger {archlabel}'
     parser = argparse.ArgumentParser(description=desc)
     parser.add_argument('cmdline', nargs='?',
                         help='program and arguments to run')
@@ -48,7 +48,7 @@ def qdb_get_console_logger():
     cf = logging.Formatter('qdb: %(message)s')
     ch.setFormatter(cf)
 
-    conlogger = logging.getLogger(__name__ + '.console')
+    conlogger = logging.getLogger(f'{__name__}.console')
     conlogger.addHandler(ch)
     conlogger.propagate = False
 
@@ -98,16 +98,15 @@ def main():
         else:
             raise
 
-    ret = dbg.get_exitcode()
-    if ret:
-        console.info('Debuggee returned ' + str(ret))
+    if ret := dbg.get_exitcode():
+        console.info(f'Debuggee returned {str(ret)}')
     else:
         console.warning('Debuggee terminated without returning an exit code')
 
     if len(dbg.counts):
         console.info('Counts:')
         for k, v in dbg.counts.iteritems():
-            console.info(hex_or_str(k) + ' hit ' + str(v) + ' time(s)')
+            console.info(f'{hex_or_str(k)} hit {str(v)} time(s)')
 
 
 if __name__ == '__main__':

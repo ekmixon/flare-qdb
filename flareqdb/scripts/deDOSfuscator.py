@@ -86,7 +86,7 @@ def dump_cmd_32b(p, q, **kwargs):
         cmdobj = q.readstruct(CmdObj, q.get_push_arg(1))
         dump_cmdobj(q, cmdobj)
     except Exception as e:
-        logging.info('%s: %s' % (str(type(e)), str(e)))
+        logging.info(f'{str(type(e))}: {str(e)}')
         logging.info(traceback.format_exc())
 
 
@@ -96,7 +96,7 @@ def dump_cmd_64b(p, q, **kwargs):
         cmdobj = q.readstruct(CmdObj, 'rdx')
         dump_cmdobj(q, cmdobj)
     except Exception as e:
-        logging.info('%s: %s' % (str(type(e)), str(e)))
+        logging.info(f'{str(type(e))}: {str(e)}')
         logging.info(traceback.format_exc())
 
 
@@ -118,13 +118,13 @@ def dump_cmdobj(q, cmdobj):
     if cmd.lower() == u'cls':
         q.ezu(cmdobj.pCmd, u'REM')
 
-    output = u'>>>cmd: %s%s%s' % (cmd, args, redirs)
+    output = f'>>>cmd: {cmd}{args}{redirs}'
     print(output)
     logging.info(output)
 
     if cmd.lower() == u'rem' and args[1:].startswith(u'status'):
         print('Mmhmm, DeDOSfuscator is listening...')
-        print('Logging to %s' % (g_logfile))
+        print(f'Logging to {g_logfile}')
         print('Oh, did I break yo\' concentration? Please. Continue.')
 
     if g_nerf:
@@ -151,7 +151,7 @@ def getSym(filename, symname, path_dbghelp=None, sympath=None):
     if not path_dbghelp:
         dir = os.path.dirname(os.path.realpath(__file__))
         path_dbghelp = os.path.join(dir, g_arch, 'dbghelp.dll')
-        print('Trying dbghelp from %s' % (path_dbghelp))
+        print(f'Trying dbghelp from {path_dbghelp}')
 
     dbghelp = None
 
@@ -161,12 +161,12 @@ def getSym(filename, symname, path_dbghelp=None, sympath=None):
         if e.winerror == 126:
             pass
         elif e.winerror == 193:
-            print(str(e))
+            print(e)
             print('Did we try to load a 64-bit dbghelp.dll in a 32-bit Python '
                   '(or vice-versa)?')
             return None
         else:
-            print(str(e))
+            print(e)
             return None
 
     # Fall back on any copy of dbghelp.dll, but may not have symbol server
@@ -199,10 +199,7 @@ def getSym(filename, symname, path_dbghelp=None, sympath=None):
     ok = dbghelp.SymFromName(-1, c_char_p(symname), pointer(si))
 
     # SymFromName failed; are dbghelp.dll and symsrv.dll in same dir?
-    if not ok:
-        return None
-
-    return (si.Address - modbase) & 0xfffff  # Hack hack
+    return (si.Address - modbase) & 0xfffff if ok else None
 
 
 def downloadPdb(dll_name, guid):
@@ -223,7 +220,7 @@ def downloadPdb(dll_name, guid):
         redir_url = response.getheader('Location')
         redir_parsed = urlparse.urlparse(redir_url)
         server = redir_parsed.netloc
-        redir_uri = '%s?%s' % (redir_parsed.path, redir_parsed.query)
+        redir_uri = f'{redir_parsed.path}?{redir_parsed.query}'
 
         if redir_parsed.scheme == 'https':
             conn = httplib.HTTPSConnection(server)
@@ -236,9 +233,8 @@ def downloadPdb(dll_name, guid):
         pdb_buffer = response.read()
 
         pdb_filename = os.path.basename(PDB_URI % (dll_name, guid, dll_name))
-        pdb_file = open(pdb_filename, 'wb')
-        pdb_file.write(pdb_buffer)
-        pdb_file.close()
+        with open(pdb_filename, 'wb') as pdb_file:
+            pdb_file.write(pdb_buffer)
         return True
 
     return False
@@ -270,22 +266,13 @@ def getPdbGuid(dll_path):
 
 
 def downloadPdbForBinIfNotExist(filepath):
-    got_pdb = False
-    if os.path.exists('cmd.pdb'):
-        got_pdb = True
-
-    if not got_pdb:
-        got_pdb = downloadPdbForBin(filepath)
-
-    return got_pdb
+    return bool(os.path.exists('cmd.pdb')) or downloadPdbForBin(filepath)
 
 
 def downloadPdbForBin(filepath):
     guid = getPdbGuid(filepath)
     filename = os.path.splitext(os.path.basename(filepath))[0]
-    if guid:
-        return downloadPdb(filename, guid)
-    return False
+    return downloadPdb(filename, guid) if guid else False
 
 
 def runHookedCmd(offset, logdir, nerf=False):
@@ -308,7 +295,7 @@ def runHookedCmd(offset, logdir, nerf=False):
 
     q = flareqdb.Qdb()
 
-    print('Running hooked cmd.exe, logging to %s' % (g_logfile))
+    print(f'Running hooked cmd.exe, logging to {g_logfile}')
     q.add_query(offset, g_dump_cmd_cb[g_arch])
     q.run(g_cmd_cmdline[g_arch])
 
@@ -323,8 +310,11 @@ def runWith_fDumpParse(offset):
 
 
 def main():
-    desc = 'DeDOSfuscator: de-obfuscate batch files by executing them.\n'
-    desc += 'You can get the needed symbol offsets by running this script\n'
+    desc = (
+        'DeDOSfuscator: de-obfuscate batch files by executing them.\n'
+        + 'You can get the needed symbol offsets by running this script\n'
+    )
+
     desc += 'on a network-connected machine with the --getoff switch which\n'
     desc += 'expects the path to a copy of the version of cmd.exe that you\n'
     desc += 'plan to use in your isolated malware analysis environment.\n'
@@ -355,9 +345,12 @@ def main():
                         'provide invalid/incorrect offsets! '
                         '(3) You won\'t be able to exit normally, so instead '
                         'exit by hitting Ctrl+C.')
-    parser.add_argument('--sympath', type=str,
-                        help='Override symbol path. Default: %s' %
-                        (DEFAULT_SYMPATH))
+    parser.add_argument(
+        '--sympath',
+        type=str,
+        help=f'Override symbol path. Default: {DEFAULT_SYMPATH}',
+    )
+
     parser.add_argument('--getpdb', type=str, metavar='path_to_cmd',
                         help='Just get the PDB for the specified copy of '
                         'cmd.exe')
@@ -374,17 +367,17 @@ def main():
     elif args.useoff:
         offset = args.useoff
     else:
-        path_cmd = args.getoff if args.getoff else g_cmd_cmdline[g_arch]
+        path_cmd = args.getoff or g_cmd_cmdline[g_arch]
 
         sym_off = getSym(path_cmd, symname, args.dbghelp, args.sympath)
 
         if not sym_off:
-            print('Failed to get symbol address for cmd!%s' % symname)
+            print(f'Failed to get symbol address for cmd!{symname}')
             print('Run me alongside SysInternals DbgView to troubleshoot')
             print('If you see a symsrv load failure:')
             print('  * Is symsrv.dll located in the same dir as dbghelp.dll?')
             print('If you see no debug messages:')
-            print('  * Are you supplying a %s dbghelp.dll?' % (g_arch))
+            print(f'  * Are you supplying a {g_arch} dbghelp.dll?')
             sys.exit(1)
 
         offset = 'cmd+0x%x' % (sym_off)

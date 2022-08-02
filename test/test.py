@@ -622,7 +622,7 @@ def test_stacktrace():
 def _test_stacktrace(command="stacktrace()"):
     dbg = Qdb()
     locs = {'backtrace': None}
-    dbg.add_query(0x401022, 'backtrace = %s' %(command))
+    dbg.add_query(0x401022, f'backtrace = {command}')
     result = dbg.run(hello_exe_path, locs)
 
     assert result is True
@@ -633,10 +633,10 @@ def _test_stacktrace(command="stacktrace()"):
     assert len(bt) > 2
 
     # Stack frames numbered as expected
-    assert all([(bt[i].nr == i) for i in range(len(bt))])
+    assert all(bt[i].nr == i for i in range(len(bt)))
 
     # ebp direction as expected
-    assert all([(bt[i].bp < bt[i + 1].bp) for i in range(len(bt) - 1)])
+    assert all(bt[i].bp < bt[i + 1].bp for i in range(len(bt) - 1))
 
     # Known addresses that should be at the top of this stack frame
     assert bt[0].pc == 0x401022
@@ -725,7 +725,7 @@ def test_rapid_fire_WILL_TAKE_A_LONG_TIME():
     locs = {'marker': runs_counted}
     dbg = Qdb()
     dbg.add_query(0x0401262, "marker += 1; kill()")
-    for i in xrange(runs_expected):
+    for _ in xrange(runs_expected):
         result = dbg.run(hello_exe_path, locs)
         assert result is True
     assert locs['marker'] == runs_expected

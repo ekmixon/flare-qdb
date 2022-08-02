@@ -86,9 +86,7 @@ def shim_getSymList(self):
         try:
             retval.append(self.getSymByName(name))
         except AttributeError:
-            logger.warning('Error getting symbol list for %s' % (name))
-            pass
-
+            logger.warning(f'Error getting symbol list for {name}')
     return retval
 
 class QdbBpException(Exception):
@@ -111,7 +109,7 @@ class QdbBpException(Exception):
         self.backtrace = bt
 
     def __str__(self):
-        errstr = ': ' + str(self.error) if self.error else ''
+        errstr = f': {str(self.error)}' if self.error else ''
         return self.message + ' "' + self.detail + '"' + errstr
 
 
@@ -164,7 +162,7 @@ class QdbMethodsMixin:
             self._evaluate_code(self._init_code)
             self._init_attach = False
 
-        self._conout('Attached to PID ' + str(pid))
+        self._conout(f'Attached to PID {str(pid)}')
 
         return True
 
@@ -185,9 +183,9 @@ class QdbMethodsMixin:
             raise ValueError('Cannot run unattached qdb without cmdline')
 
         if cmdline:
-            self._conout('Running: ' + str(cmdline))
+            self._conout(f'Running: {str(cmdline)}')
         else:
-            self._conout('Running: PID ' + str(self._trace.getPid()))
+            self._conout(f'Running: PID {str(self._trace.getPid())}')
 
         if not self._trace:
             self._prepareTrace(lambda trace: trace.execute(cmdline))
@@ -311,8 +309,7 @@ class QdbMethodsMixin:
         except ValueError:
             va = self._vex(vexpr_pc)
             if str(vexpr_pc).lower() != phex(va).lower():
-                vexpr_pc = (vexpr_pc + '=' +
-                            phex(va))
+                vexpr_pc = (f'{vexpr_pc}=' + phex(va))
             else:
                 vexpr_pc = vexpr_pc
 
@@ -374,7 +371,7 @@ class QdbBuiltinsMixin:
             int : Result of Vivisect expression evaluation.
         """
         result = self._vex(vexpr)
-        self._conout_pc(str(vexpr) + ' = ' + phex_dec(result))
+        self._conout_pc(f'{str(vexpr)} = {phex_dec(result)}')
         return result
 
     def get_arch(self):
@@ -424,8 +421,10 @@ class QdbBuiltinsMixin:
         """
         arch = self.get_arch()
         if arch not in self._stacktrace_impl:
-            raise NotImplementedError('Stack trace is only available for %s' %
-                                      ','.join(self._stacktrace_impl))
+            raise NotImplementedError(
+                f"Stack trace is only available for {','.join(self._stacktrace_impl)}"
+            )
+
 
         archwidth = self._archWidth()
 
@@ -480,8 +479,11 @@ class QdbBuiltinsMixin:
         returns:
             int: Trace Breakpoint ID.
         """
-        self._conout_pc('Setting breakpoint at ' + hex_or_str(vexpr_pc) +
-                        ' to execute ' + str(query))
+        self._conout_pc(
+            (f'Setting breakpoint at {hex_or_str(vexpr_pc)}' + ' to execute ')
+            + str(query)
+        )
+
         return self.add_query_ephemeral(vexpr_pc, query, None)
 
     def get_retaddr(self):
@@ -490,7 +492,7 @@ class QdbBuiltinsMixin:
         Assumes i386.
         Assumes the prolog has not yet been executed.
         """
-        return self._vex('poi(%s)' % (self._archStackRegName()))
+        return self._vex(f'poi({self._archStackRegName()})')
 
     def get_push_arg(self, argno):
         """Get argument from stack.
@@ -507,9 +509,7 @@ class QdbBuiltinsMixin:
         width = self._archWidth()
         off = esp + width * (1 + argno)
         data = self.readmem(off, 1, 4, None)
-        dw = struct.unpack('@I', data)[0]
-
-        return dw
+        return struct.unpack('@I', data)[0]
 
     def retcallback(self, cb_ret=None, limit=16384, steptype=StepType.stepo):
         """
@@ -553,16 +553,16 @@ class QdbBuiltinsMixin:
             See retcallback() documentation for details.
         """
 
-        for f in range(nframes):
+        for _ in range(nframes):
             self.retcallback(None, limit)  # Until return
             self.stepi()  # And one more
 
     def stepi(self, n=1):
-        for i in range(n):
+        for _ in range(n):
             self._trace.stepi()
 
     def stepo(self, n=1):
-        for i in range(n):
+        for _ in range(n):
             op = self._trace.parseOpcode(self._trace.getProgramCounter())
             if op.isCall():
                 next = op.va + op.size
@@ -592,7 +592,7 @@ class QdbBuiltinsMixin:
 
         def retwatch_callback_closure():
             retval = self._vex(xax)
-            self._conout_pc('Collecting return value ' + phex_dec(retval))
+            self._conout_pc(f'Collecting return value {phex_dec(retval)}')
             return retval
 
         return self.retcallback(retwatch_callback_closure, limit, steptype)
@@ -621,7 +621,7 @@ class QdbBuiltinsMixin:
 
         def retset_callback_closure():
             val = self._vex(vexpr_val)
-            self._conout_pc('Setting return value <= ' + phex_dec(val))
+            self._conout_pc(f'Setting return value <= {phex_dec(val)}')
             self._trace.setRegisterByName(xax, val)
             return self._vex(xax)
 
@@ -634,7 +634,7 @@ class QdbBuiltinsMixin:
             int: PID.
         """
         pid = self._trace.getPid()
-        self._conout_pc('Detaching from PID ' + str(pid))
+        self._conout_pc(f'Detaching from PID {str(pid)}')
         self._trace.detach()
         self._runnable = False
 
@@ -664,8 +664,7 @@ class QdbBuiltinsMixin:
         retval = True
 
         for tid, tinfo in self._trace.getThreads().items():
-            ht = ctypes.windll.kernel32.OpenThread(THREAD_ALL_ACCESS, 0, tid)
-            if ht:
+            if ht := ctypes.windll.kernel32.OpenThread(THREAD_ALL_ACCESS, 0, tid):
                 retval = retval and cb(tid, ht)
                 ctypes.windll.kernel32.CloseHandle(ht)
             else:
@@ -735,8 +734,7 @@ class QdbBuiltinsMixin:
         self._trace.writeMemory(m, self._park_code_template)
         self._trace.writeMemory(m + len(self._park_code_template), pc_packed)
 
-        self._conout_pc('Parking debuggee at ' + phex(m) + ', from PC ' +
-                        phex(pc))
+        self._conout_pc((f'Parking debuggee at {phex(m)}, from PC ' + phex(pc)))
 
         self._trace.setProgramCounter(m)
 
@@ -841,21 +839,23 @@ class QdbBuiltinsMixin:
             if filename and (va_start < va) and (va < (va_start + sz)):
                 off = va - va_start
                 basename = os.path.splitext(os.path.basename(filename))[0]
-                return '%s+%s' % (basename, phex(off))
+                return f'{basename}+{phex(off)}'
 
         return None
 
     def getmodname(self, vexpr_va):
         va = self._vex(vexpr_va)
         maps = self._trace.getMemoryMaps()
-        for (va_start, sz, p, filename) in maps:
-            if (va_start < va) and (va < (va_start + sz)):
-                if filename:
-                    return os.path.splitext(os.path.basename(filename))[0]
-                else:
-                    return None
-
-        return None
+        return next(
+            (
+                os.path.splitext(os.path.basename(filename))[0]
+                if filename
+                else None
+                for va_start, sz, p, filename in maps
+                if va_start < va < va_start + sz
+            ),
+            None,
+        )
 
     def _getsym(self, vexpr_va):
         """Quietly get the symbol associated with a location. Alias: ln.
@@ -878,14 +878,12 @@ class QdbBuiltinsMixin:
 
         # Second, go for nearest
         if not sym:
-            modname = self.getmodname(va)
-            if modname:
-                mod = self._trace.getSymByName(modname)
-                if mod:
+            if modname := self.getmodname(va):
+                if mod := self._trace.getSymByName(modname):
                     sym = mod.getSymByAddr(va, False)
                     if sym is not None:
                         off = va - sym.value
-                        sym = '%s.%s+%s' % (modname, sym.name, phex(off))
+                        sym = f'{modname}.{sym.name}+{phex(off)}'
 
         # Last, try for mod+offset
         if not sym:
@@ -907,8 +905,10 @@ class QdbBuiltinsMixin:
         va = self._vex(vexpr_va)
         sym_instance = self._getsym(va)
         symname = '(unknown)' if sym_instance is None else str(sym_instance)
-        self._conout_pc('Symbol for ' + str(vexpr_va) + ' = ' + phex(va) +
-                        ' = ' + str(symname))
+        self._conout_pc(
+            ((f'Symbol for {str(vexpr_va)} = {phex(va)}' + ' = ') + symname)
+        )
+
         return symname
 
     def ln(self, vexpr_va):
@@ -934,7 +934,7 @@ class QdbBuiltinsMixin:
             specified by vexpr_reg.
         """
         val = self._vex(vexpr_val)
-        self._conout_pc('Setting ' + str(vexpr_reg) + ' <= ' + phex(val))
+        self._conout_pc(f'Setting {str(vexpr_reg)} <= {phex(val)}')
         self._trace.setRegisterByName(vexpr_reg, val)
         return val
 
@@ -991,7 +991,7 @@ class QdbBuiltinsMixin:
             return self._readMemUnsafe(va, elements, element_size, sentinel,
                                        ONE_MB)
         except vtrace.PlatformException:
-            self._conout('Exception reading virtual address ' + phex(va))
+            self._conout(f'Exception reading virtual address {phex(va)}')
             return b''
 
     def readstruct(self, factory, vexpr_va, vexpr_size=0):
@@ -1095,8 +1095,7 @@ class QdbBuiltinsMixin:
         """
         addr = self._vex(vexpr_dst)
         self._trace.writeMemory(addr, bytes)
-        self._conout_pc('Wrote ' + dec_phex(len(bytes)) + ' bytes to ' +
-                        phex(addr))
+        self._conout_pc((f'Wrote {dec_phex(len(bytes))} bytes to ' + phex(addr)))
 
     def eb(self, vexpr_dst, bytes):
         """Edit (write) one or more bytes.
@@ -1115,9 +1114,9 @@ class QdbBuiltinsMixin:
 
     def _ex(self, vexpr_dst, n, w):
         if isinstance(n, int):
-            self.writemem(vexpr_dst, struct.pack('@' + UNPACK_FMTS[w], n))
+            self.writemem(vexpr_dst, struct.pack(f'@{UNPACK_FMTS[w]}', n))
         else:
-            fmt = '@%s%s' % (len(n), UNPACK_FMTS[w])
+            fmt = f'@{len(n)}{UNPACK_FMTS[w]}'
             self.writemem(self._vex(vexpr_dst), struct.pack(fmt, *n))
 
     def eq(self, vexpr_dst, n):
@@ -1320,10 +1319,10 @@ class QdbBuiltinsMixin:
         instrs = []
         pc = self._trace.getProgramCounter()
         va = self._vex(vexpr_va) if vexpr_va is not None else pc
-        how_many = str(count) + ' instrs ' if count else ''
+        how_many = f'{str(count)} instrs ' if count else ''
 
         if conout:
-            self._conout_pc('Disassembling ' + how_many + 'at ' + phex(va))
+            self._conout_pc(f'Disassembling {how_many}at {phex(va)}')
 
         if until_ret:
             not_ret = True
@@ -1331,16 +1330,16 @@ class QdbBuiltinsMixin:
                 op = self._trace.parseOpcode(va)
                 instrs.append(str(op))
                 if conout:
-                    self._conout('  ' + phex(va) + ': ' + str(op))
+                    self._conout(f'  {phex(va)}: {str(op)}')
                 va += op.size
                 not_ret = not (str(op).startswith('ret ') or (str(op) ==
                                                               'ret'))
         else:
-            for i in xrange(0, count):
+            for _ in xrange(0, count):
                 op = self._trace.parseOpcode(va)
                 instrs.append(str(op))
                 if conout:
-                    self._conout('  ' + phex(va) + ': ' + str(op))
+                    self._conout(f'  {phex(va)}: {str(op)}')
                 va += op.size
 
         return instrs
@@ -1500,22 +1499,18 @@ class Qdb(QdbMethodsMixin, QdbBuiltinsMixin):
         if not path_dbghelp:
             the_dir = os.path.dirname(os.path.realpath(__file__))
             path_dbghelp = os.path.join(the_dir, arch, 'dbghelp.dll')
-            self._conout('Trying dbghelp from %s' % (path_dbghelp))
+            self._conout(f'Trying dbghelp from {path_dbghelp}')
 
         try:
             self.dbghelp = ctypes.WinDLL(path_dbghelp)
         except WindowsError as e:
             if e.winerror == 126:
-                print(str(e))
-                raise
+                print(e)
             elif e.winerror == 193:
                 self._conout(str(e))
                 self._conout('Did we try to load a 64-bit dbghelp.dll in a '
                              '32-bit Python (or vice-versa)?')
-                raise
-            else:
-                raise
-
+            raise
         self.dbghelp.SymLoadModuleEx.argtypes = [ctypes.wintypes.HANDLE,
                                                  ctypes.wintypes.HANDLE,
                                                  ctypes.c_char_p,
@@ -1552,16 +1547,15 @@ class Qdb(QdbMethodsMixin, QdbBuiltinsMixin):
         def handle_err(msg):
             if raise_on_fail:
                 raise RuntimeError(msg)
-            else:
-                self._conout(msg)
-                return False
+            self._conout(msg)
+            return False
 
-        self._conout('Loading symbols for %s' % (modname))
+        self._conout(f'Loading symbols for {modname}')
 
         # Find the requested module in the trace object
         mod = self._trace.getSymByName(modname)
         if not mod:
-            return handle_err('Module %s is not loaded' % (modname))
+            return handle_err(f'Module {modname} is not loaded')
 
         real_base = mod.baseaddr
         modfilename = mod.fname
@@ -1574,8 +1568,7 @@ class Qdb(QdbMethodsMixin, QdbBuiltinsMixin):
                     modfilename = filename.encode('ascii')
 
         if not modfilename:
-            return handle_err('Cannot find backing filename for module %s' %
-                              (modname))
+            return handle_err(f'Cannot find backing filename for module {modname}')
 
         opts = self.dbghelp.SymGetOptions()
         # So you can use SysInternals DbgView to troubleshoot
@@ -1615,16 +1608,14 @@ class Qdb(QdbMethodsMixin, QdbBuiltinsMixin):
 
     def _evaluate_code(self, query, exprs=None, qbp=None):
         """Run Python or callable"""
-        pc = 0
-        if not self._init_attach:
-            pc = self._trace.getProgramCounter()
-
-        context = {}
-        context['pc'] = pc
-        context['trace'] = self._trace
-        context['q'] = self
-        context['qbp'] = qbp  # Qdb Breakpoint
-        context['exprs'] = exprs
+        pc = 0 if self._init_attach else self._trace.getProgramCounter()
+        context = {
+            'pc': pc,
+            'trace': self._trace,
+            'q': self,
+            'qbp': qbp,
+            'exprs': exprs,
+        }
 
         if self._loadsyms_future:
             self.loadSyms(self._loadsyms_modspec)
@@ -1716,12 +1707,17 @@ class Qdb(QdbMethodsMixin, QdbBuiltinsMixin):
         if str(instrs[0]) == 'mov ebp,esp':
             return self._vex('poi(esp+4)')
 
-        for i in range(4):
-            if ((str(instrs[i]) == 'push ebp') and
-                    (str(instrs[i + 1]) == 'mov ebp,esp')):
-                return self._vex('poi(esp)')
-
-        return None
+        return next(
+            (
+                self._vex('poi(esp)')
+                for i in range(4)
+                if (
+                    (str(instrs[i]) == 'push ebp')
+                    and (str(instrs[i + 1]) == 'mov ebp,esp')
+                )
+            ),
+            None,
+        )
 
     def _stacktrace_x86(self, archwidth, depth=None):
         """Stack backtrace implementation for x86.
@@ -1771,7 +1767,7 @@ class Qdb(QdbMethodsMixin, QdbBuiltinsMixin):
             n_s = str(n).zfill(2)
             ebp_s = phex(ebp)[2:].zfill(hexwidth)
             ret_s = phex(ret)[2:].zfill(hexwidth)
-            self._conout('%s %s %s %s' % (n_s, ebp_s, ret_s, eip_s))
+            self._conout(f'{n_s} {ebp_s} {ret_s} {eip_s}')
 
             # For next iteration
             eip = ret
@@ -1780,7 +1776,7 @@ class Qdb(QdbMethodsMixin, QdbBuiltinsMixin):
                 in_prolog_first_iteration = False
             else:
                 try:
-                    ebp = self._vex('poi(%s)' % (phex(ebp)))
+                    ebp = self._vex(f'poi({phex(ebp)})')
                 except vtrace.PlatformException as e:
                     break
 
@@ -1878,24 +1874,21 @@ class Qdb(QdbMethodsMixin, QdbBuiltinsMixin):
         old_pc = self.readmem(pc + len(self._park_code_template), 1, 8, None)
         old_pc_int = struct.unpack('@Q', old_pc)[0]
 
-        self._conout_pc('Unparking TID ' + str(tid) + ' from PC = ' +
-                        phex(pc) + ', to old PC ' + phex(old_pc_int))
+        self._conout_pc(
+            ((f'Unparking TID {str(tid)} from PC = ' + phex(pc)) + ', to old PC ')
+            + phex(old_pc_int)
+        )
+
 
         self._trace.setProgramCounter(old_pc_int)
         # Vivisect does not currently support freeMemory / platformFreeMemory,
         # so no cleanup will be done here.
 
     def _archStackRegName(self):
-        if self.get_arch() == 'i386':
-            return 'esp'
-        else:
-            return 'rsp'
+        return 'esp' if self.get_arch() == 'i386' else 'rsp'
 
     def _archRetRegName(self):
-        if self.get_arch() == 'i386':
-            return 'eax'
-        else:
-            return 'rax'
+        return 'eax' if self.get_arch() == 'i386' else 'rax'
 
     def _archWidth(self):
         return 4 if self.get_arch() == 'i386' else 8
@@ -1904,14 +1897,11 @@ class Qdb(QdbMethodsMixin, QdbBuiltinsMixin):
         """Return the symbolic name specified on the command line corresponding
         to this program counter value, if any.
         """
-        pc = 0
-        if not self._init_attach:
-            pc = self._trace.getProgramCounter()
-
+        pc = 0 if self._init_attach else self._trace.getProgramCounter()
         ret = phex(pc)
         try:
             pretty = str(self._exprs[pc]['sym'])
-            if pretty != str(pc) and pretty != phex(pc):
+            if pretty not in [str(pc), phex(pc)]:
                 return pretty
         except KeyError:
             pass
@@ -1930,7 +1920,7 @@ class Qdb(QdbMethodsMixin, QdbBuiltinsMixin):
         """
         if self._con:
             prettypc = self._pretty_pc()
-            self._con.info('[' + prettypc + ']: ' + str(s))
+            self._con.info(f'[{prettypc}]: {str(s)}')
 
     def _add_delayed_query(self, pc_symbolic, vexpr, conds):
         """Set delayed breakpoint."""
@@ -1951,11 +1941,11 @@ class Qdb(QdbMethodsMixin, QdbBuiltinsMixin):
 
         cumulative = 0
 
-        if 0 == elements:
+        if elements == 0:
             while True:
                 this_element = self._trace.readMemory(va, element_size)
                 bytes = bytes + this_element
-                if 0 != limit:
+                if limit != 0:
                     cumulative += element_size
                     if cumulative > limit:
                         logger.error(
@@ -1966,7 +1956,7 @@ class Qdb(QdbMethodsMixin, QdbBuiltinsMixin):
                     break
         else:
             to_read = 0xffffffff & (elements * element_size)
-            if (0 != limit) and (to_read > limit):
+            if limit != 0 and to_read > limit:
                 logger.error('_readMemUnsafe: 1MB limit exceeded, reading 1MB')
                 to_read = limit
 
@@ -2000,17 +1990,19 @@ class Qdb(QdbMethodsMixin, QdbBuiltinsMixin):
             if str(addr_str) == str(addr):
                 addr_str = phex(addr_str)
             else:
-                addr_str = addr_str + ' (' + phex(addr) + ')'
+                addr_str = f'{addr_str} ({phex(addr)})'
 
-            self._conout_pc('Setting string: ' + str(addr_str) + ' <= ' +
-                            str(prefix) + '"' + str(val) + '"')
+            self._conout_pc(
+                (
+                    ((f'Setting string: {str(addr_str)} <= ' + prefix) + '"')
+                    + str(val)
+                    + '"'
+                )
+            )
+
 
         if terminator:
-            if wide:
-                val += 2 * '\x00'
-            else:
-                val += '\x00'
-
+            val += 2 * '\x00' if wide else '\x00'
         self._trace.writeMemory(addr, val)
 
     def _dx(self, vexpr, handler, n):
@@ -2029,7 +2021,7 @@ class Qdb(QdbMethodsMixin, QdbBuiltinsMixin):
         """
         if self._con:
             prettypc = self._pretty_pc()
-            self._con.info('[' + prettypc + ']: ' + str(label))
+            self._con.info(f'[{prettypc}]: {str(label)}')
         return print_hexdump(va, bytes, datasize, self._con)
 
     def _handle_db(self, va, vexpr, elements=128):
@@ -2037,48 +2029,48 @@ class Qdb(QdbMethodsMixin, QdbBuiltinsMixin):
         s = self.readmem(va, elements, 1, None)
         # WARNING, _conout_pc_hexdump returns a byte array, so it has a
         # side-effect and should not be eliminated without being refactored.
-        return self._conout_pc_hexdump(hex_or_str(vexpr) + ': ', va, s, 1)
+        return self._conout_pc_hexdump(f'{hex_or_str(vexpr)}: ', va, s, 1)
 
     def _handle_dw(self, va, vexpr, elements=64):
         """Handle WinDbg-style 'dw' command by reading words."""
         s = self.readmem(va, elements, 2, None)
         # WARNING, _conout_pc_hexdump returns a byte array, so it has a
         # side-effect and should not be eliminated without being refactored.
-        return self._conout_pc_hexdump(hex_or_str(vexpr) + ': ', va, s, 2)
+        return self._conout_pc_hexdump(f'{hex_or_str(vexpr)}: ', va, s, 2)
 
     def _handle_dd(self, va, vexpr, elements=32):
         """Handle WinDbg-style 'dd' command by reading dwords."""
         s = self.readmem(va, elements, 4, None)
         # WARNING, _conout_pc_hexdump returns a byte array, so it has a
         # side-effect and should not be eliminated without being refactored.
-        return self._conout_pc_hexdump(hex_or_str(vexpr) + ': ', va, s, 4)
+        return self._conout_pc_hexdump(f'{hex_or_str(vexpr)}: ', va, s, 4)
 
     def _handle_dq(self, va, vexpr, elements=16):
         """Handle WinDbg-style 'dq' command by reading dwords."""
         s = self.readmem(va, elements, 8, None)
         # WARNING, _conout_pc_hexdump returns a byte array, so it has a
         # side-effect and should not be eliminated without being refactored.
-        return self._conout_pc_hexdump(hex_or_str(vexpr) + ': ', va, s, 8)
+        return self._conout_pc_hexdump(f'{hex_or_str(vexpr)}: ', va, s, 8)
 
     def _handle_da(self, va, vexpr, elements):
         """Handle WinDbg-style 'da' command by reading an ASCII string."""
         s = self.readmem(va, elements, 1, '\x00')
-        if 0 == elements:
+        if elements == 0:
             elements = len(s)
         bytes = elements
-        s = s[0:bytes].decode('ascii')
-        self._conout_pc(hex_or_str(vexpr) + ': ' + s)
+        s = s[:bytes].decode('ascii')
+        self._conout_pc(f'{hex_or_str(vexpr)}: {s}')
         return s
 
     def _handle_du(self, va, vexpr, elements):
         """Handle WinDbg-style 'du' command by reading a Unicode string."""
         s = self.readmem(va, elements, 2, '\x00\x00')
-        if 0 == elements:
+        if elements == 0:
             elements = len(s)
         bytes = elements * 2
-        s = s[0:bytes].decode('utf-16')
+        s = s[:bytes].decode('utf-16')
         try:
-            self._conout_pc(hex_or_str(vexpr) + ': ' + s)
+            self._conout_pc(f'{hex_or_str(vexpr)}: {s}')
         except UnicodeEncodeError as e:
             self._conout_pc(hex_or_str(vexpr) +
                             ': (cannot display Unicode string: ' +
@@ -2157,9 +2149,7 @@ class QdbBreak(vtrace.Breakpoint):
 
         for (symbolic_addr, expr) in self._qdb._exprs_delayed.iteritems():
             if self._qdb._trace.parseExpression(symbolic_addr) == pc:
-                self._qdb._exprs[pc] = {}
-                self._qdb._exprs[pc]['sym'] = symbolic_addr
-
+                self._qdb._exprs[pc] = {'sym': symbolic_addr}
         self.evaluate_breakpoint()
 
 
@@ -2185,7 +2175,7 @@ def print_hexdump(va, bytes, datasize, lgr):
         label = hex_padded(va + offset)
 
         # Prepare printable characters only if dumping individual bytes.
-        printable = ascii_or_dots(line) if 1 == datasize else ''
+        printable = ascii_or_dots(line) if datasize == 1 else ''
 
         # Unpack the correct number of datasize-sized elements to consume a
         # 16-byte line.
@@ -2198,12 +2188,9 @@ def print_hexdump(va, bytes, datasize, lgr):
         else:
             hexline = ' '.join([hex_padded(b, 2 * datasize) for b in data])
 
-        for d in data:
-            ret.append(d)
-
+        ret.extend(iter(data))
         if lgr:
-            lgr.info(label + ': ' + pad_after(hexline, 16 * 3, ' ') +
-                     printable)
+            lgr.info((f'{label}: ' + pad_after(hexline, 16 * 3, ' ') + printable))
 
     if lgr and len(bytes) == 0:
         lgr.info('  (No bytes to print)')
@@ -2217,10 +2204,12 @@ def phex(n): return hex(n).rstrip('L')
 def phex_bare(n): return hex(n).lstrip('0x').rstrip('L')
 
 
-def dec_phex(n): return str(n) + ' (' + phex(n) + ')'
+def dec_phex(n):
+    return f'{str(n)} ({phex(n)})'
 
 
-def phex_dec(n): return phex(n) + ' (' + str(n) + ')'
+def phex_dec(n):
+    return f'{phex(n)} ({str(n)})'
 
 
 def hex_or_str(n):
@@ -2243,7 +2232,8 @@ def pad_before(s, n, c):
     return (c * n)[:n - len(s)] + s if len(s) < n else s
 
 
-def punctuate_quadword(s): return s[0:8] + '`' + s[8:]
+def punctuate_quadword(s):
+    return f'{s[:8]}`{s[8:]}'
 
 
 def hex_padded(n, digits=8): return pad_before(phex_bare(n), digits, "0")
